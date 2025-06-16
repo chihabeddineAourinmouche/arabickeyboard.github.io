@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Effortless Type in Arabic</title>
+    <!-- React Development CDN -->
+    <script crossorigin src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <!-- ReactDOM Development CDN -->
+    <script crossorigin src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <!-- Babel CDN for JSX transformation in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* Global Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Body Styling */
+        body {
+            width: 100vw;
+            height: 100vh;
+            min-width: 350px;
+            min-height: 350px;
+            background-color: #18181a; /* Dark background */
+        }
+        #root {
+            width: 100%;
+            height: 100%;
+            background-color: inherit;
+            font-family: Verdana, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Main React component for the Arabic transliteration app
+        const App = () => {
+            // State to hold the current value of the textarea
+            const [arabicText, setArabicText] = React.useState('');
+            // Ref to directly access the textarea DOM element for cursor/scroll manipulation
+            const textAreaRef = React.useRef(null);
+
+            // Define transliteration rules as an array of objects.
+            // Each object contains a string representation of a regex pattern and its corresponding replacement string.
+            // The order of these rules is critical for correct transliteration,
+            // with longer sequences or specific cases preceding shorter, more general ones.
+            const transliterationRules = React.useMemo(() => [
+                // Diacritics (Harakat) and Shaddah/Sukun - Longer sequences first
+                { patternString: "==a", replacement: "ً" },
+                { patternString: "==i", replacement: "ٍ" },
+                { patternString: "==u", replacement: "ٌ" },
+                { patternString: "=a", replacement: "َ" },
+                { patternString: "=i", replacement: "ِ" },
+                { patternString: "=u", replacement: "ُ" },
+                { patternString: "=w", replacement: "ّ" },
+                { patternString: "=o", replacement: "ْ" },
+
+                // Special character processing
+                { patternString: "’", replacement: "'" },
+                { patternString: "aa", replacement: "آ" }, // Must be before single 'a'
+
+                // Hamza forms - Specific multi-character forms first
+                { patternString: "وءء", replacement: "ؤ" },
+                { patternString: "يءء", replacement: "ئ" },
+                { patternString: "اءء", replacement: "إ" },
+                { patternString: "ءا", replacement: "أ" },
+
+                // Arabic-Indic Numerals - Specific combos first
+                { patternString: "0=", replacement: "٠" },
+                { patternString: "1=", replacement: "١" },
+                { patternString: "2=", replacement: "٢" },
+                { patternString: "3=", replacement: "٣" },
+                { patternString: "4=", replacement: "٤" },
+                { patternString: "5=", replacement: "٥" },
+                { patternString: "6=", replacement: "٦" },
+                { patternString: "7=", replacement: "٧" },
+                { patternString: "8=", replacement: "٨" },
+                { patternString: "9=", replacement: "٩" },
+                { patternString: "%=", replacement: "٪" },
+
+                // Letter Transliteration (Arabic and Persian/Urdu variants)
+                // Specific combinations or variants should come before general single-character mappings.
+                { patternString: "ب'", replacement: "پ" }, { patternString: "p", replacement: "پ" }, { patternString: "پ'", replacement: "ب" },
+                { patternString: "ت'", replacement: "ث" }, { patternString: "ث'", replacement: "ت" }, { patternString: "ṯ", replacement: "ث" },
+                { patternString: "[jǧ]", replacement: "ج" }, { patternString: "ج'", replacement: "چ" }, { patternString: "c", replacement: "چ" }, { patternString: "چ'", replacement: "ح" },
+                { patternString: "[HḥḤ]", replacement: "ح" }, { patternString: "ح'", replacement: "خ" }, { patternString: "[xẖK]", replacement: "خ" }, { patternString: "خ'", replacement: "ج" },
+                { patternString: "د'", replacement: "ذ" }, { patternString: "ذ'", replacement: "د" }, { patternString: "ḏ", replacement: "ذ" },
+                { patternString: "ر'", replacement: "ز" }, { patternString: "ز'", replacement: "ر" },
+                { patternString: "س'", replacement: "ش" }, { patternString: "ش'", replacement: "س" }, { patternString: "š", replacement: "ش" },
+                { patternString: "[Sṣ]", replacement: "ص" }, { patternString: "ص'", replacement: "ض" }, { patternString: "ض'", replacement: "ص" }, { patternString: "[Dḍ]", replacement: "ض" },
+                { patternString: "[Tṭ]", replacement: "ط" }, { patternString: "ط'", replacement: "ظ" }, { patternString: "ظ'", replacement: "ط" }, { patternString: "[Zẓ]", replacement: "ظ" },
+                { patternString: "[gʿ]", replacement: "ع" }, { patternString: "ع'", replacement: "غ" }, { patternString: "غ'", replacement: "ع" }, { patternString: "ġ", replacement: "غ" },
+                { patternString: "ف'", replacement: "ڤ" }, { patternString: "ڤ'", replacement: "ف" }, { patternString: "v", replacement: "ڢ" },
+                { patternString: "ق'", replacement: "ڨ" }, { patternString: "ڨ'", replacement: "ق" },
+                { patternString: "ك'", replacement: "ڭ" }, { patternString: "ڭ'", replacement: "ك" },
+                { patternString: "ه'", replacement: "ة" }, { patternString: "ة'", replacement: "ه" },
+                { patternString: "و'", replacement: "ؤ" }, { patternString: "ؤ'", replacement: "و" },
+                { patternString: "ي'", replacement: "ى" }, { patternString: "ى'", replacement: "ئ" }, { patternString: "ئ'", replacement: "ي" },
+                { patternString: "-", replacement: "ء" }, { patternString: "ʾ", replacement: "ء" },
+                { patternString: "[YIE]", replacement: "ى" }, // Broad matches for 'Y', 'I', 'E' to Alif Maqsura
+                { patternString: "I", replacement: "إ" }, { patternString: "A", replacement: "إ" }, // Broad matches for 'I', 'A' to Alif with hamza below
+
+                // Basic single letter conversions (broad matches should come after specific ones)
+                { patternString: "[aâàā]", replacement: "ا" }, { patternString: "b", replacement: "ب" },
+                { patternString: "t", replacement: "ت" }, { patternString: "j", replacement: "ج" },
+                { patternString: "d", replacement: "د" }, { patternString: "r", replacement: "ر" },
+                { patternString: "z", replacement: "ز" }, { patternString: "s", replacement: "س" },
+                { patternString: "l", replacement: "ل" }, { patternString: "m", replacement: "م" },
+                { patternString: "n", replacement: "ن" }, { patternString: "h", replacement: "ه" },
+                { patternString: "[wouôûōū]", replacement: "و" }, { patternString: "[yieîī]", replacement: "ي" },
+                { patternString: "f", replacement: "ف" }, { patternString: "q", replacement: "ق" },
+                { patternString: "k", replacement: "ك" },
+                { patternString: "_", replacement: "ـ" },
+
+                // Punctuation
+                { patternString: "\\?", replacement: "؟" }, // Escaped '?' for regex
+                { patternString: ";", replacement: "؛" },
+                { patternString: ",", replacement: "،" }
+            ], []); // useMemo to prevent re-creation on every render
+
+            // Handler for textarea input changes
+            const handleInputChange = (event) => {
+                const inputField = textAreaRef.current;
+                let currentText = event.target.value;
+
+                // Store cursor position and scroll top before modification
+                const initialSelectionStart = inputField.selectionStart;
+                const initialSelectionEnd = inputField.selectionEnd;
+                const initialScrollTop = inputField.scrollTop;
+
+                // Apply each transliteration rule sequentially to the current text.
+                for (const rule of transliterationRules) {
+                    const regex = new RegExp(rule.patternString, 'g');
+                    currentText = currentText.replace(regex, rule.replacement);
+                }
+
+                // Calculate the change in text length to adjust cursor position accurately.
+                const originalTextLength = inputField.value.length;
+                const transformedTextLength = currentText.length;
+                const lengthDifference = transformedTextLength - originalTextLength;
+
+                // Update the state with the transformed Arabic text.
+                // React will re-render the textarea with this new value.
+                setArabicText(currentText);
+
+                // Imperatively adjust cursor position and scroll after React updates the DOM.
+                // This needs to happen after the state update has potentially triggered a re-render.
+                // A small timeout or a useEffect with dependency on arabicText could be used,
+                // but direct manipulation after setState often works for simple cases.
+                // For a highly precise cursor, a more sophisticated approach might be needed.
+                // However, in this case, directly setting these properties immediately after setState
+                // generally provides the desired user experience.
+                requestAnimationFrame(() => {
+                    if (inputField) {
+                        inputField.selectionStart = initialSelectionStart + lengthDifference;
+                        inputField.selectionEnd = initialSelectionEnd + lengthDifference;
+                        inputField.scrollTop = initialScrollTop;
+                    }
+                });
+            };
+
+            // useEffect to set initial focus when the component mounts
+            React.useEffect(() => {
+                if (textAreaRef.current) {
+                    textAreaRef.current.focus();
+                }
+            }, []);
+
+            return (
+                <textarea
+                    id="text-area"
+                    ref={textAreaRef}
+                    value={arabicText}
+                    style={{
+                        backgroundColor: 'inherit', // Darker textarea background
+                        width: '100%',
+                        height: '100%',
+                        fontSize: '1.8em',
+                        color: '#d8dee9', // Light text color for contrast
+                        fontFamily: "'Simplified Arabic', 'Times New Roman', Arial, sans-serif",
+                        direction: 'rtl', // Essential for correct Arabic text rendering
+                        padding: '20px',
+                        border: 'none', // Remove default border
+                        outline: 'none', // Remove outline on focus
+                        borderRadius: '5px',
+                        resize: 'none' // Prevent manual resizing by user
+                    }}
+                    onChange={handleInputChange}
+                />
+            );
+        };
+
+        // Render the App component into the root div
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
